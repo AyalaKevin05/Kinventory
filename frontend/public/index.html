@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#FF6B35" />
+    <meta name="description" content="Kinventory — Sistema profesional de inventario y ventas" />
+    <title>Kinventory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <style>
+      /* Splash screen mientras carga React */
+      #splash {
+        position: fixed; inset: 0;
+        background: #111111;
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.3s ease;
+      }
+      #splash.hidden { opacity: 0; pointer-events: none; }
+      .splash-logo {
+        font-size: 2.5rem;
+        font-family: Arial, sans-serif;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+      }
+      .splash-logo span:first-child { color: #FF6B35; }
+      .splash-logo span:last-child  { color: #F5F5F5; font-weight: 400; }
+    </style>
+  </head>
+  <body>
+    <div id="splash">
+      <div class="splash-logo">
+        <span>K</span><span>inventory</span>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script>
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const splash = document.getElementById('splash');
+          if (splash) { splash.classList.add('hidden'); setTimeout(() => splash.remove(), 300); }
+        }, 500);
+      });
+    </script>
+  </body>
+</html>
