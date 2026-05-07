@@ -14,25 +14,25 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.set('trust proxy', 1);
 
-// ── Rate Limiting ──────────────────────────────────────────
-app.use('/api/auth/login', rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 min
-  max: 10,
-  message: { ok: false, mensaje: 'Demasiados intentos. Intenta en 15 minutos.' },
-}));
-
-app.use('/api', rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
-  max:       parseInt(process.env.RATE_LIMIT_MAX)       || 100,
-  message:   { ok: false, mensaje: 'Demasiadas solicitudes.' },
-}));
-
-// ── CORS ───────────────────────────────────────────────────
+// ── CORS (Debe ir antes del Rate Limit) ───────────────
 app.use(cors({
   origin:      process.env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '*',
   credentials: true,
   methods:     ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
+// ── Rate Limiting ──────────────────────────────────────────
+app.use('/api/auth/login', rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 min
+  max: 50, // Aumentado para evitar falsos positivos
+  message: { ok: false, mensaje: 'Demasiados intentos. Intenta en 15 minutos.' },
+}));
+
+app.use('/api', rateLimit({
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
+  max:       parseInt(process.env.RATE_LIMIT_MAX)       || 1000, // Aumentado a 1000
+  message:   { ok: false, mensaje: 'Demasiadas solicitudes.' },
 }));
 
 // ── Parsers ────────────────────────────────────────────────
