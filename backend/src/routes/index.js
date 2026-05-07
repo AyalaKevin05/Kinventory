@@ -61,7 +61,7 @@ router.post('/categorias',        autenticado, soloAdmin, catalogos.crearCategor
 router.put ('/categorias/:id',    autenticado, soloAdmin, catalogos.actualizarCategoria);
 router.delete('/categorias/:id',  autenticado, soloAdmin, catalogos.eliminarCategoria);
 
-router.get ('/proveedores',       autenticado, soloAdmin, catalogos.getProveedores);
+router.get ('/proveedores',       autenticado, catalogos.getProveedores);
 router.post('/proveedores',       autenticado, soloAdmin, catalogos.crearProveedor);
 router.put ('/proveedores/:id',   autenticado, soloAdmin, catalogos.actualizarProveedor);
 router.delete('/proveedores/:id', autenticado, soloAdmin, catalogos.eliminarProveedor);
@@ -70,7 +70,7 @@ router.get ('/clientes',          autenticado, requiereRol([1,2]), catalogos.get
 router.post('/clientes',          autenticado, requiereRol([1,2]), catalogos.crearCliente);
 router.put ('/clientes/:id',      autenticado, requiereRol([1,2]), catalogos.actualizarCliente);
 
-router.get ('/usuarios',          autenticado, soloAdmin, catalogos.getUsuarios);
+router.get ('/usuarios',          autenticado, catalogos.getUsuarios);
 router.get ('/roles',             autenticado, soloAdmin, catalogos.getRoles);
 router.get ('/sucursales',        autenticado, catalogos.getSucursales);
 
