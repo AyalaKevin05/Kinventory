@@ -4,19 +4,23 @@ const { ok, error, noEncontrado } = require('../utils/response');
 
 const listar = async (req, res) => {
   try {
-    const { estado, desde, hasta, page = 1, limit = 50 } = req.query;
-    const { id_empresa } = req.usuario;
+    const estado = req.query.estado || null;
+    const desde  = req.query.desde  || null;
+    const hasta  = req.query.hasta  || null;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
+    const { id_empresa } = req.usuario;
 
     let where = 'WHERE f.id_empresa = ?';
     const params = [id_empresa];
 
-    if (estado) { where += ' AND f.estado = ?';              params.push(estado); }
+    if (estado) { where += ' AND f.estado = ?';               params.push(estado); }
     if (desde)  { where += ' AND DATE(f.fecha_emision) >= ?'; params.push(desde); }
     if (hasta)  { where += ' AND DATE(f.fecha_emision) <= ?'; params.push(hasta); }
 
-    const [total] = await pool.execute(`SELECT COUNT(*) AS total FROM facturas f ${where}`, params);
-    const [rows]  = await pool.execute(
+    const [totalRows] = await pool.query(`SELECT COUNT(*) AS total FROM facturas f ${where}`, params);
+    const [rows]      = await pool.query(
       `SELECT f.*, u.nombre AS vendedor,
               CONCAT(IFNULL(c.nombre,''),' ',IFNULL(c.apellido,'')) AS cliente,
               c.documento
@@ -26,11 +30,11 @@ const listar = async (req, res) => {
        LEFT JOIN clientes c  ON v.id_cliente   = c.id_cliente
        ${where}
        ORDER BY f.fecha_emision DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    ok(res, { facturas: rows, total: total[0].total });
+    ok(res, { facturas: rows, total: totalRows[0].total });
   } catch (err) {
     error(res, err.message);
   }

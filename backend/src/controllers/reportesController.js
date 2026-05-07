@@ -4,30 +4,34 @@ const { ok, error } = require('../utils/response');
 
 const auditoria = async (req, res) => {
   try {
-    const { desde, hasta, accion, page = 1, limit = 50 } = req.query;
-    const { id_empresa } = req.usuario;
+    const accion = req.query.accion || null;
+    const desde  = req.query.desde  || null;
+    const hasta  = req.query.hasta  || null;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
+    const { id_empresa } = req.usuario;
 
     let where = 'WHERE a.id_empresa = ?';
     const params = [id_empresa];
 
-    if (accion) { where += ' AND a.accion = ?'; params.push(accion); }
-    if (desde)  { where += ' AND DATE(a.creado_en) >= ?'; params.push(desde); }
-    if (hasta)  { where += ' AND DATE(a.creado_en) <= ?'; params.push(hasta); }
+    if (accion) { where += ' AND a.accion = ?';            params.push(accion); }
+    if (desde)  { where += ' AND DATE(a.creado_en) >= ?';  params.push(desde); }
+    if (hasta)  { where += ' AND DATE(a.creado_en) <= ?';  params.push(hasta); }
 
-    const [total] = await pool.execute(`SELECT COUNT(*) AS total FROM auditoria a ${where}`, params);
-    const [rows]  = await pool.execute(
+    const [totalRows] = await pool.query(`SELECT COUNT(*) AS total FROM auditoria a ${where}`, params);
+    const [rows]      = await pool.query(
       `SELECT a.*, u.nombre AS usuario, r.nombre AS rol
        FROM auditoria a
        JOIN usuarios u ON a.id_usuario = u.id_usuario
        JOIN roles r    ON u.id_rol     = r.id_rol
        ${where}
        ORDER BY a.creado_en DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    ok(res, { registros: rows, total: total[0].total });
+    ok(res, { registros: rows, total: totalRows[0].total });
   } catch (err) {
     error(res, err.message);
   }

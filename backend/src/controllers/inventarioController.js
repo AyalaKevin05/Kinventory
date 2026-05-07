@@ -4,28 +4,33 @@ const { ok, creado, error, noEncontrado } = require('../utils/response');
 
 const listarMovimientos = async (req, res) => {
   try {
-    const { tipo, id_producto, desde, hasta, page = 1, limit = 50 } = req.query;
+    const tipo       = req.query.tipo        || null;
+    const id_producto= req.query.id_producto ? parseInt(req.query.id_producto) : null;
+    const desde      = req.query.desde       || null;
+    const hasta      = req.query.hasta       || null;
+    const page       = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit      = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset     = (page - 1) * limit;
     const { id_empresa } = req.usuario;
-    const offset = (page - 1) * limit;
 
     let where = 'WHERE id_empresa = ?';
     const params = [id_empresa];
 
-    if (tipo)        { where += ' AND tipo = ?';              params.push(tipo); }
-    if (id_producto) { where += ' AND id_producto = ?';       params.push(id_producto); }
-    if (desde)       { where += ' AND DATE(creado_en) >= ?';  params.push(desde); }
-    if (hasta)       { where += ' AND DATE(creado_en) <= ?';  params.push(hasta); }
+    if (tipo)        { where += ' AND tipo = ?';             params.push(tipo); }
+    if (id_producto) { where += ' AND id_producto = ?';      params.push(id_producto); }
+    if (desde)       { where += ' AND DATE(creado_en) >= ?'; params.push(desde); }
+    if (hasta)       { where += ' AND DATE(creado_en) <= ?'; params.push(hasta); }
 
-    const [total] = await pool.execute(
+    const [totalRows] = await pool.query(
       `SELECT COUNT(*) AS total FROM movimientos_inventario ${where}`, params
     );
-    const [rows] = await pool.execute(
+    const [rows] = await pool.query(
       `SELECT * FROM v_movimientos_completos ${where}
-       ORDER BY creado_en DESC LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       ORDER BY creado_en DESC LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    ok(res, { movimientos: rows, total: total[0].total });
+    ok(res, { movimientos: rows, total: totalRows[0].total });
   } catch (err) {
     error(res, err.message);
   }

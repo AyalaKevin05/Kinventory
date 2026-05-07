@@ -4,39 +4,42 @@ const { ok, creado, error, noEncontrado } = require('../utils/response');
 
 const listar = async (req, res) => {
   try {
-    const { desde, hasta, estado, page = 1, limit = 50 } = req.query;
-    const { id_empresa, id_sucursal, id_rol } = req.usuario;
+    const desde  = req.query.desde  || null;
+    const hasta  = req.query.hasta  || null;
+    const estado = req.query.estado || null;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
+    const { id_empresa, id_sucursal, id_rol } = req.usuario;
 
     let where = 'WHERE v.id_empresa = ?';
     const params = [id_empresa];
 
     // Vendedor solo ve sus propias ventas
     if (id_rol === 2) { where += ' AND v.id_usuario = ?'; params.push(req.usuario.id_usuario); }
-    // Almacenista no ve ventas — protegido en rutas
-    if (id_sucursal) { where += ' AND v.id_sucursal = ?'; params.push(id_sucursal); }
-    if (estado)      { where += ' AND v.estado = ?';       params.push(estado); }
-    if (desde)       { where += ' AND DATE(v.fecha) >= ?'; params.push(desde); }
-    if (hasta)       { where += ' AND DATE(v.fecha) <= ?'; params.push(hasta); }
+    if (id_sucursal)  { where += ' AND v.id_sucursal = ?'; params.push(id_sucursal); }
+    if (estado)       { where += ' AND v.estado = ?';       params.push(estado); }
+    if (desde)        { where += ' AND DATE(v.fecha) >= ?'; params.push(desde); }
+    if (hasta)        { where += ' AND DATE(v.fecha) <= ?'; params.push(hasta); }
 
-    const [total] = await pool.execute(`SELECT COUNT(*) AS total FROM ventas v ${where}`, params);
-    const [rows]  = await pool.execute(
+    const [totalRows] = await pool.query(`SELECT COUNT(*) AS total FROM ventas v ${where}`, params);
+    const [rows]      = await pool.query(
       `SELECT v.*, u.nombre AS vendedor,
               CONCAT(IFNULL(c.nombre,''), ' ', IFNULL(c.apellido,'')) AS cliente,
               s.nombre AS sucursal,
               f.numero_factura
        FROM ventas v
-       JOIN usuarios u   ON v.id_usuario   = u.id_usuario
-       LEFT JOIN clientes c    ON v.id_cliente   = c.id_cliente
-       JOIN sucursales s  ON v.id_sucursal  = s.id_sucursal
-       LEFT JOIN facturas f    ON v.id_venta     = f.id_venta
+       JOIN usuarios u   ON v.id_usuario  = u.id_usuario
+       LEFT JOIN clientes c   ON v.id_cliente  = c.id_cliente
+       JOIN sucursales s ON v.id_sucursal = s.id_sucursal
+       LEFT JOIN facturas f   ON v.id_venta    = f.id_venta
        ${where}
        ORDER BY v.fecha DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    ok(res, { ventas: rows, total: total[0].total });
+    ok(res, { ventas: rows, total: totalRows[0].total });
   } catch (err) {
     error(res, err.message);
   }
