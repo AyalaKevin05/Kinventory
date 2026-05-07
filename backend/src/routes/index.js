@@ -3,7 +3,6 @@ const router = require('express').Router();
 const { body } = require('express-validator');
 const { validar } = require('../middleware/validate');
 const { autenticado, soloAdmin, adminOAlmacenista, requiereRol, auditar } = require('../middleware/auth');
-const pool = require('../config/db');
 
 // Controllers
 const auth       = require('../controllers/authController');
@@ -13,45 +12,6 @@ const inventario = require('../controllers/inventarioController');
 const facturas   = require('../controllers/facturasController');
 const catalogos  = require('../controllers/catalogosController');
 const reportes   = require('../controllers/reportesController');
-
-// ── MANTENIMIENTO (temporal) ───────────────────────────────────
-router.post('/maintenance/fix-views', async (req, res) => {
-  if (req.headers['x-maintenance-key'] !== (process.env.MAINTENANCE_KEY || 'kinventory-fix-2024')) {
-    return res.status(403).json({ ok: false, mensaje: 'Clave incorrecta.' });
-  }
-  try {
-    await pool.query(`CREATE OR REPLACE VIEW v_productos_stock AS
-      SELECT p.id_producto, p.id_empresa, p.codigo, p.nombre, p.precio_venta, p.precio_compra,
-             p.stock_actual, p.stock_minimo, p.stock_maximo, p.aplica_iva,
-             c.nombre AS categoria, pr.nombre AS proveedor, e.nombre AS empresa,
-             CASE WHEN p.stock_actual = 0 THEN 'agotado'
-                  WHEN p.stock_actual <= p.stock_minimo THEN 'critico'
-                  WHEN p.stock_actual <= p.stock_minimo * 2 THEN 'bajo'
-                  ELSE 'normal' END AS estado_stock
-      FROM productos p
-      JOIN categorias c ON p.id_categoria = c.id_categoria
-      LEFT JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
-      JOIN empresas e ON p.id_empresa = e.id_empresa
-      WHERE p.activo = 1`);
-
-    await pool.query(`CREATE OR REPLACE VIEW v_movimientos_completos AS
-      SELECT m.id_movimiento, m.id_empresa, m.creado_en, m.tipo, m.cantidad,
-             m.stock_anterior, m.stock_nuevo, m.costo_unitario, m.referencia, m.notas,
-             p.nombre AS producto, p.codigo AS codigo_producto,
-             u.nombre AS usuario, r.nombre AS rol_usuario,
-             s.nombre AS sucursal, e.nombre AS empresa
-      FROM movimientos_inventario m
-      JOIN productos p  ON m.id_producto = p.id_producto
-      JOIN usuarios u   ON m.id_usuario  = u.id_usuario
-      JOIN roles r      ON u.id_rol      = r.id_rol
-      JOIN sucursales s ON m.id_sucursal = s.id_sucursal
-      JOIN empresas e   ON m.id_empresa  = e.id_empresa`);
-
-    res.json({ ok: true, mensaje: 'Vistas corregidas exitosamente.' });
-  } catch (err) {
-    res.status(500).json({ ok: false, mensaje: err.message });
-  }
-});
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login',
