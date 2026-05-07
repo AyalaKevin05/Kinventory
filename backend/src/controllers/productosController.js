@@ -5,21 +5,26 @@ const { enviarAlertaStockBajo } = require('../utils/email');
 
 const listar = async (req, res) => {
   try {
-    const { busqueda, id_categoria, estado_stock, page = 1, limit = 50 } = req.query;
+    const busqueda    = req.query.busqueda   || null;
+    const id_categoria= req.query.id_categoria ? parseInt(req.query.id_categoria) : null;
+    const estado_stock= req.query.estado_stock|| null;
+    const page        = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit       = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset      = (page - 1) * limit;
     const { id_empresa } = req.usuario;
-    const offset = (page - 1) * limit;
 
     let where = 'WHERE p.id_empresa = ? AND p.activo = 1';
     const params = [id_empresa];
 
-    if (busqueda) { where += ' AND (p.nombre LIKE ? OR p.codigo LIKE ? OR p.codigo_barras LIKE ?)'; params.push(`%${busqueda}%`, `%${busqueda}%`, `%${busqueda}%`); }
+    if (busqueda)     { where += ' AND (p.nombre LIKE ? OR p.codigo LIKE ? OR p.codigo_barras LIKE ?)'; params.push(`%${busqueda}%`, `%${busqueda}%`, `%${busqueda}%`); }
     if (id_categoria) { where += ' AND p.id_categoria = ?'; params.push(id_categoria); }
     if (estado_stock === 'bajo')    where += ' AND p.stock_actual <= p.stock_minimo AND p.stock_actual > 0';
     if (estado_stock === 'agotado') where += ' AND p.stock_actual = 0';
     if (estado_stock === 'normal')  where += ' AND p.stock_actual > p.stock_minimo';
 
-    const [total] = await pool.execute(`SELECT COUNT(*) AS total FROM productos p ${where}`, params);
-    const [rows]  = await pool.execute(
+    // Usar query() en lugar de execute() para consultas dinámicas con LIMIT/OFFSET numérico
+    const [totalRows] = await pool.query(`SELECT COUNT(*) AS total FROM productos p ${where}`, params);
+    const [rows]      = await pool.query(
       `SELECT p.*, c.nombre AS categoria, c.color AS categoria_color,
               pr.nombre AS proveedor,
               CASE
@@ -33,11 +38,11 @@ const listar = async (req, res) => {
        LEFT JOIN proveedores pr ON p.id_proveedor = pr.id_proveedor
        ${where}
        ORDER BY p.nombre
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), parseInt(offset)]
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    ok(res, { productos: rows, total: total[0].total, page: parseInt(page), limit: parseInt(limit) });
+    ok(res, { productos: rows, total: totalRows[0].total, page, limit });
   } catch (err) {
     error(res, err.message);
   }

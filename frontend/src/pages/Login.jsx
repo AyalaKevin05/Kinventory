@@ -106,8 +106,8 @@ export default function Login() {
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Accesos de prueba</p>
             {[
               ['Admin', 'admin@kinventory.com', 'Admin123!'],
-              ['Vendedor', 'vendedor@kinventory.com', 'Vend123!'],
-              ['Almacenista', 'almacenista@kinventory.com', 'Alma123!'],
+              ['Vendedor', 'vendedor@kinventory.com', 'Admin123!'],
+              ['Almacenista', 'almacenista@kinventory.com', 'Admin123!'],
             ].map(([rol, correo, pass]) => (
               <button key={rol} type="button"
                 onClick={() => setForm({ correo, contrasena: pass })}

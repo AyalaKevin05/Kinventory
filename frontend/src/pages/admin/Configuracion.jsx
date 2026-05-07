@@ -4,6 +4,7 @@ import { getUsuarios, getRoles, getSucursales, registrarUsuario, cambiarContrase
 import { PageHeader, Btn, Input, Select, Modal, EmptyState, Skeleton } from '../../components/common';
 import { useTheme } from '../../context/ThemeContext';
 import toast from 'react-hot-toast';
+import CatalogosTab from '../../components/admin/CatalogosTab';
 
 const VACIO_USER = { nombre:'', apellido:'', correo:'', contrasena:'', id_rol:'', id_sucursal:'', telefono:'' };
 
@@ -58,8 +59,8 @@ export default function Configuracion() {
     <div>
       <PageHeader title="Configuración" subtitle="Gestión de usuarios, roles y preferencias" />
 
-      <div style={{ display:'flex', gap:'0.25rem', marginBottom:'1.5rem', background:'var(--bg-elevated)', padding:'0.25rem', borderRadius:'var(--radius-lg)', width:'fit-content' }}>
-        {[['usuarios','👥 Usuarios'], ['cuenta','👤 Mi cuenta'], ['apariencia','🎨 Apariencia']].map(([id, label]) => (
+      <div style={{ display:'flex', gap:'0.25rem', marginBottom:'1.5rem', background:'var(--bg-elevated)', padding:'0.25rem', borderRadius:'var(--radius-lg)', width:'fit-content', flexWrap:'wrap' }}>
+        {[['usuarios','👥 Usuarios'], ['catalogos','🏷️ Catálogos'], ['cuenta','👤 Mi cuenta'], ['apariencia','🎨 Apariencia']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding:'0.4rem 1rem', borderRadius:'var(--radius-md)', border:'none', cursor:'pointer', fontSize:'13px', fontWeight:600, transition:'var(--transition)', background: tab===id ? 'var(--bg-surface)' : 'transparent', color: tab===id ? 'var(--orange-primary)' : 'var(--text-muted)' }}>
             {label}
@@ -177,6 +178,13 @@ export default function Configuracion() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* CATALOGOS */}
+      {tab === 'catalogos' && (
+        <div style={{ maxWidth: 800 }}>
+          <CatalogosTab />
         </div>
       )}
     </div>
