@@ -62,7 +62,56 @@ app.use((err, req, res, next) => {
   res.status(500).json({ ok: false, mensaje: 'Error interno del servidor.' });
 });
 
-app.listen(PORT, () => {
+// ── Auto-migración FIFO (corre al iniciar, seguro de re-ejecutar) ────────────
+async function runMigrations() {
+  try {
+    const pool = require('./config/db');
+
+    // 1. Crear tabla lotes_inventario si no existe
+    await pool.execute(`
+      CREATE TABLE IF NOT EXISTS lotes_inventario (
+        id_lote           INT UNSIGNED   AUTO_INCREMENT PRIMARY KEY,
+        id_producto       INT UNSIGNED   NOT NULL,
+        id_empresa        INT UNSIGNED   NOT NULL,
+        id_movimiento     INT UNSIGNED   NULL,
+        cantidad_inicial  INT            NOT NULL,
+        cantidad_restante INT            NOT NULL DEFAULT 0,
+        costo_unitario    DECIMAL(10,2)  NOT NULL DEFAULT 0.00,
+        precio_venta      DECIMAL(10,2)  NOT NULL,
+        fecha_entrada     TIMESTAMP      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        activo            TINYINT(1)     NOT NULL DEFAULT 1,
+        CONSTRAINT fk_lote_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+        CONSTRAINT fk_lote_empresa  FOREIGN KEY (id_empresa)  REFERENCES empresas(id_empresa),
+        INDEX idx_lote_producto (id_producto),
+        INDEX idx_lote_activo   (activo),
+        INDEX idx_lote_fecha    (fecha_entrada)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    // 2. Inicializar lotes para productos con stock que aún no tienen lote
+    await pool.execute(`
+      INSERT INTO lotes_inventario
+        (id_producto, id_empresa, cantidad_inicial, cantidad_restante, costo_unitario, precio_venta)
+      SELECT p.id_producto, p.id_empresa, p.stock_actual, p.stock_actual, p.precio_compra, p.precio_venta
+      FROM productos p
+      WHERE p.activo = 1
+        AND p.stock_actual > 0
+        AND NOT EXISTS (
+          SELECT 1 FROM lotes_inventario l
+          WHERE l.id_producto = p.id_producto AND l.id_empresa = p.id_empresa
+        )
+    `);
+
+    console.log('✅ Migración FIFO completada (lotes_inventario lista)');
+  } catch (err) {
+    // No abortar el servidor si la migración falla
+    console.warn('⚠️  Migración FIFO omitida:', err.message);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`\n🚀 Kinventory API corriendo en http://localhost:${PORT}`);
   console.log(`📡 Entorno: ${process.env.NODE_ENV || 'development'}\n`);
+  await runMigrations();
 });
+
