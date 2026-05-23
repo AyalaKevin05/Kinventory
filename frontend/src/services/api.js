@@ -37,7 +37,7 @@ export const registrarUsuario = (d)      => API.post('/auth/register', d);
 
 // Dashboard
 export const getDashboardResumen   = () => API.get('/dashboard/resumen');
-export const getTopProductos       = () => API.get('/dashboard/top-productos');
+export const getTopProductos       = (p={}) => API.get('/dashboard/top-productos', { params: p });
 export const getVentasMes          = () => API.get('/dashboard/ventas-mes');
 
 // Productos
@@ -60,6 +60,7 @@ export const getMovimientos      = (p={}) => API.get('/inventario/movimientos', 
 export const registrarMovimiento = (d)    => API.post('/inventario/movimiento', d);
 export const ajustarStock        = (d)    => API.post('/inventario/ajuste', d);
 export const getResumenInventario= ()     => API.get('/inventario/resumen');
+export const getLotesProducto    = (id)   => API.get(`/inventario/lotes/${id}`);
 
 // Facturas
 export const getFacturas      = (p={}) => API.get('/facturas', { params: p });

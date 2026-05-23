@@ -96,6 +96,13 @@ const crear = async (req, res) => {
     let subtotal = 0;
     let impuesto = 0;
 
+    // Verificar si FIFO está disponible
+    const [tableCheck] = await conn.execute(
+      `SELECT COUNT(*) AS existe FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name = 'lotes_inventario'`
+    );
+    const fifoDisponible = tableCheck[0].existe > 0;
+
     for (const item of items) {
       const [prod] = await conn.execute(
         'SELECT precio_venta, stock_actual, nombre, aplica_iva FROM productos WHERE id_producto=? AND id_empresa=? AND activo=1 FOR UPDATE',
@@ -105,7 +112,51 @@ const crear = async (req, res) => {
       if (prod[0].stock_actual < item.cantidad)
         throw new Error(`Stock insuficiente para "${prod[0].nombre}". Disponible: ${prod[0].stock_actual}.`);
 
-      const precio = item.precio_unitario || prod[0].precio_venta;
+      let precio = item.precio_unitario || prod[0].precio_venta;
+
+      // ── FIFO: obtener precio del lote activo más antiguo y consumir lotes ──
+      if (fifoDisponible) {
+        const [lotesDisp] = await conn.execute(
+          `SELECT id_lote, precio_venta, cantidad_restante FROM lotes_inventario
+           WHERE id_producto=? AND id_empresa=? AND activo=1 AND cantidad_restante > 0
+           ORDER BY fecha_entrada ASC`,
+          [item.id_producto, id_empresa]
+        );
+
+        if (lotesDisp.length > 0) {
+          // Precio del lote más antiguo (el que se vende primero)
+          precio = lotesDisp[0].precio_venta;
+          let cantidadPendiente = parseInt(item.cantidad);
+
+          for (const lote of lotesDisp) {
+            if (cantidadPendiente <= 0) break;
+            const consumir = Math.min(cantidadPendiente, lote.cantidad_restante);
+            const nuevaRestante = lote.cantidad_restante - consumir;
+
+            await conn.execute(
+              'UPDATE lotes_inventario SET cantidad_restante=?, activo=? WHERE id_lote=?',
+              [nuevaRestante, nuevaRestante > 0 ? 1 : 0, lote.id_lote]
+            );
+            cantidadPendiente -= consumir;
+          }
+
+          // Después de la venta, actualizar precio_venta del producto al nuevo lote activo
+          const [siguienteLote] = await conn.execute(
+            `SELECT precio_venta FROM lotes_inventario
+             WHERE id_producto=? AND id_empresa=? AND activo=1 AND cantidad_restante > 0
+             ORDER BY fecha_entrada ASC LIMIT 1`,
+            [item.id_producto, id_empresa]
+          );
+          if (siguienteLote.length > 0) {
+            await conn.execute(
+              'UPDATE productos SET precio_venta=? WHERE id_producto=?',
+              [siguienteLote[0].precio_venta, item.id_producto]
+            );
+          }
+        }
+      }
+      // ── FIN FIFO ──────────────────────────────────────────────────────────
+
       await conn.execute(
         'INSERT INTO detalle_venta (id_venta, id_producto, cantidad, precio_unitario) VALUES (?,?,?,?)',
         [id_venta, item.id_producto, item.cantidad, precio]
@@ -157,9 +208,32 @@ const cancelar = async (req, res) => {
 // Reportes
 const masVendidos = async (req, res) => {
   try {
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
     const [rows] = await pool.execute(
-      'SELECT * FROM v_top_productos WHERE id_empresa = ? LIMIT 10',
-      [req.usuario.id_empresa]
+      `SELECT
+         t.id_producto,
+         p.nombre,
+         p.precio_venta,
+         p.stock_actual,
+         p.stock_minimo,
+         p.aplica_iva,
+         p.codigo,
+         p.codigo_barras,
+         c.nombre  AS categoria,
+         t.unidades_vendidas AS total_vendido,
+         t.ingresos_totales,
+         t.num_ventas
+       FROM v_top_productos t
+       JOIN productos  p ON t.id_producto   = p.id_producto
+       JOIN categorias c ON p.id_categoria  = c.id_categoria
+       JOIN ventas     v ON v.id_empresa    = ?
+       WHERE p.id_empresa = ? AND p.activo = 1 AND p.stock_actual > 0
+       GROUP BY t.id_producto, p.nombre, p.precio_venta, p.stock_actual,
+                p.stock_minimo, p.aplica_iva, p.codigo, p.codigo_barras,
+                c.nombre, t.unidades_vendidas, t.ingresos_totales, t.num_ventas
+       ORDER BY t.unidades_vendidas DESC
+       LIMIT ${limit}`,
+      [req.usuario.id_empresa, req.usuario.id_empresa]
     );
     ok(res, rows);
   } catch (err) {

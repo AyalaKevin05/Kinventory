@@ -1,30 +1,28 @@
-// controllers/productosController.js
 const pool = require('../config/db');
 const { ok, creado, error, noEncontrado, badRequest } = require('../utils/response');
 const { enviarAlertaStockBajo } = require('../utils/email');
 
 const listar = async (req, res) => {
   try {
-    const busqueda    = req.query.busqueda   || null;
-    const id_categoria= req.query.id_categoria ? parseInt(req.query.id_categoria) : null;
-    const estado_stock= req.query.estado_stock|| null;
-    const page        = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit       = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
-    const offset      = (page - 1) * limit;
+    const busqueda = req.query.busqueda || null;
+    const id_categoria = req.query.id_categoria ? parseInt(req.query.id_categoria) : null;
+    const estado_stock = req.query.estado_stock || null;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
     const { id_empresa } = req.usuario;
 
     let where = 'WHERE p.id_empresa = ? AND p.activo = 1';
     const params = [id_empresa];
 
-    if (busqueda)     { where += ' AND (p.nombre LIKE ? OR p.codigo LIKE ? OR p.codigo_barras LIKE ?)'; params.push(`%${busqueda}%`, `%${busqueda}%`, `%${busqueda}%`); }
+    if (busqueda) { where += ' AND (p.nombre LIKE ? OR p.codigo LIKE ? OR p.codigo_barras LIKE ?)'; params.push(`%${busqueda}%`, `%${busqueda}%`, `%${busqueda}%`); }
     if (id_categoria) { where += ' AND p.id_categoria = ?'; params.push(id_categoria); }
-    if (estado_stock === 'bajo')    where += ' AND p.stock_actual <= p.stock_minimo AND p.stock_actual > 0';
+    if (estado_stock === 'bajo') where += ' AND p.stock_actual <= p.stock_minimo AND p.stock_actual > 0';
     if (estado_stock === 'agotado') where += ' AND p.stock_actual = 0';
-    if (estado_stock === 'normal')  where += ' AND p.stock_actual > p.stock_minimo';
+    if (estado_stock === 'normal') where += ' AND p.stock_actual > p.stock_minimo';
 
-    // Usar query() en lugar de execute() para consultas dinámicas con LIMIT/OFFSET numérico
     const [totalRows] = await pool.query(`SELECT COUNT(*) AS total FROM productos p ${where}`, params);
-    const [rows]      = await pool.query(
+    const [rows] = await pool.query(
       `SELECT p.*, c.nombre AS categoria, c.color AS categoria_color,
               pr.nombre AS proveedor,
               CASE
@@ -68,7 +66,7 @@ const obtener = async (req, res) => {
 const crear = async (req, res) => {
   try {
     const { nombre, descripcion, precio_compra, precio_venta, stock_actual, stock_minimo,
-            stock_maximo, id_categoria, id_proveedor, codigo, codigo_barras, unidad_medida, aplica_iva } = req.body;
+      stock_maximo, id_categoria, id_proveedor, codigo, codigo_barras, unidad_medida, aplica_iva } = req.body;
     const { id_empresa } = req.usuario;
 
     const [result] = await pool.execute(
@@ -77,8 +75,8 @@ const crear = async (req, res) => {
         stock_maximo, unidad_medida, aplica_iva)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [id_empresa, id_categoria, id_proveedor || null, codigo || null, codigo_barras || null,
-       nombre, descripcion || null, precio_compra || 0, precio_venta, stock_actual || 0,
-       stock_minimo || 5, stock_maximo || 1000, unidad_medida || 'unidad', aplica_iva ?? 1]
+        nombre, descripcion || null, precio_compra || 0, precio_venta, stock_actual || 0,
+        stock_minimo || 5, stock_maximo || 1000, unidad_medida || 'unidad', aplica_iva ?? 1]
     );
 
     creado(res, { id: result.insertId }, 'Producto creado.');
@@ -90,17 +88,17 @@ const crear = async (req, res) => {
 const actualizar = async (req, res) => {
   try {
     const { nombre, descripcion, precio_compra, precio_venta, stock_minimo, stock_maximo,
-            id_categoria, id_proveedor, codigo, codigo_barras, unidad_medida, aplica_iva } = req.body;
+      id_categoria, id_proveedor, codigo, codigo_barras, unidad_medida, aplica_iva } = req.body;
 
     const [result] = await pool.execute(
       `UPDATE productos SET nombre=?, descripcion=?, precio_compra=?, precio_venta=?,
         stock_minimo=?, stock_maximo=?, id_categoria=?, id_proveedor=?,
         codigo=?, codigo_barras=?, unidad_medida=?, aplica_iva=?
        WHERE id_producto=? AND id_empresa=?`,
-      [nombre, descripcion||null, precio_compra||0, precio_venta, stock_minimo||5,
-       stock_maximo||1000, id_categoria, id_proveedor||null, codigo||null,
-       codigo_barras||null, unidad_medida||'unidad', aplica_iva??1,
-       req.params.id, req.usuario.id_empresa]
+      [nombre, descripcion || null, precio_compra || 0, precio_venta, stock_minimo || 5,
+        stock_maximo || 1000, id_categoria, id_proveedor || null, codigo || null,
+        codigo_barras || null, unidad_medida || 'unidad', aplica_iva ?? 1,
+        req.params.id, req.usuario.id_empresa]
     );
 
     if (!result.affectedRows) return noEncontrado(res);
@@ -151,8 +149,8 @@ const alertarStockBajo = async (req, res) => {
 
     await enviarAlertaStockBajo({
       destinatario: empresa[0].email,
-      empresa:      empresa[0].nombre,
-      productos:    rows,
+      empresa: empresa[0].nombre,
+      productos: rows,
     });
 
     ok(res, { enviados: rows.length }, `Alerta enviada con ${rows.length} productos.`);

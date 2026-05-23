@@ -1,26 +1,37 @@
-async function testApi() {
-  try {
-    const loginReq = await fetch('https://kinventory-production.up.railway.app/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ correo: 'admin@kinventory.com', contrasena: 'Admin123!' })
-    });
-    const loginRes = await loginReq.json();
-    
-    if (!loginRes.ok) throw new Error(loginRes.mensaje);
-    
-    const token = loginRes.data.token;
-    console.log('Login OK. Token:', token.substring(0, 20) + '...');
+async function fixAndTest() {
+  const BASE = 'https://kinventory-production.up.railway.app/api';
 
-    const catReq = await fetch('https://kinventory-production.up.railway.app/api/proveedores', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const catRes = await catReq.json();
+  // Paso 1: Llamar al endpoint de corrección
+  console.log('Llamando endpoint de mantenimiento...');
+  const fixReq = await fetch(`${BASE}/maintenance/fix-views`, {
+    method: 'POST',
+    headers: { 'x-maintenance-key': 'kinventory-fix-2024' }
+  });
+  const fixRes = await fixReq.json();
+  console.log('fix-views:', fixRes);
 
-    console.log('catRes:', catRes);
-  } catch (err) {
-    console.error('Error:', err.message);
+  if (!fixRes.ok) {
+    console.error('El servidor aún no está actualizado. Intenta de nuevo en 1-2 minutos.');
+    return;
+  }
+
+  // Paso 2: Login
+  const loginReq = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ correo: 'admin@kinventory.com', contrasena: 'Admin123!' })
+  });
+  const loginRes = await loginReq.json();
+  const token = loginRes.data.token;
+  console.log('\nLogin OK');
+
+  // Paso 3: Verificar endpoints
+  for (const url of [`${BASE}/inventario/movimientos`, `${BASE}/inventario/resumen`, `${BASE}/productos/stock-bajo`]) {
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const j = await r.json();
+    const path = url.replace(BASE, '');
+    console.log(`\n${path}:`, j.ok ? `✅ OK (${JSON.stringify(j.data).substring(0, 80)}...)` : `❌ ${j.mensaje}`);
   }
 }
 
-testApi();
+fixAndTest();

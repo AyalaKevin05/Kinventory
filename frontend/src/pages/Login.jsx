@@ -101,23 +101,6 @@ export default function Login() {
             </Btn>
           </form>
 
-          {/* Roles info */}
-          <div style={{ marginTop: '2rem', padding: '1rem', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)' }}>
-            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Accesos de prueba</p>
-            {[
-              ['Admin', 'admin@kinventory.com', 'Admin123!'],
-              ['Vendedor', 'vendedor@kinventory.com', 'Admin123!'],
-              ['Almacenista', 'almacenista@kinventory.com', 'Admin123!'],
-            ].map(([rol, correo, pass]) => (
-              <button key={rol} type="button"
-                onClick={() => setForm({ correo, contrasena: pass })}
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', background: 'transparent', border: 'none', padding: '0.3rem 0', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: '11px', color: 'var(--orange-primary)', fontWeight: 600 }}>{rol}</span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{correo}</span>
-              </button>
-            ))}
-          </div>
-
           <p style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '11px', color: 'var(--text-muted)' }}>
             © {new Date().getFullYear()} Kinventory. Todos los derechos reservados.
           </p>

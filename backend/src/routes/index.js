@@ -25,7 +25,7 @@ router.post('/auth/register',  autenticado, soloAdmin, auditar('CREATE_USER','us
 
 // ── DASHBOARD ─────────────────────────────────────────────────
 router.get('/dashboard/resumen',   autenticado, requiereRol([1,2]), ventas.resumenDashboard);
-router.get('/dashboard/top-productos', autenticado, requiereRol([1]), ventas.masVendidos);
+router.get('/dashboard/top-productos', autenticado, requiereRol([1,2]), ventas.masVendidos);
 router.get('/dashboard/ventas-mes',    autenticado, requiereRol([1]), ventas.porMes);
 
 // ── PRODUCTOS ─────────────────────────────────────────────────
@@ -48,6 +48,7 @@ router.get ('/inventario/movimientos',  autenticado, adminOAlmacenista, inventar
 router.post('/inventario/movimiento',   autenticado, adminOAlmacenista, auditar('MOVIMIENTO','movimientos_inventario'), inventario.registrarMovimiento);
 router.post('/inventario/ajuste',       autenticado, adminOAlmacenista, auditar('AJUSTE','productos'), inventario.ajustarStock);
 router.get ('/inventario/resumen',      autenticado, adminOAlmacenista, inventario.resumenInventario);
+router.get ('/inventario/lotes/:id',    autenticado, adminOAlmacenista, inventario.lotesProducto);
 
 // ── FACTURAS ──────────────────────────────────────────────────
 router.get  ('/facturas/resumen',   autenticado, requiereRol([1]), facturas.resumen);

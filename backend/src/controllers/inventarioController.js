@@ -1,16 +1,16 @@
-// controllers/inventarioController.js — Módulo Almacenista
+// controllers/inventarioController.js — Módulo Almacenista (con soporte FIFO de lotes)
 const pool = require('../config/db');
 const { ok, creado, error, noEncontrado } = require('../utils/response');
 
 const listarMovimientos = async (req, res) => {
   try {
-    const tipo       = req.query.tipo        || null;
-    const id_producto= req.query.id_producto ? parseInt(req.query.id_producto) : null;
-    const desde      = req.query.desde       || null;
-    const hasta      = req.query.hasta       || null;
-    const page       = Math.max(1, parseInt(req.query.page)  || 1);
-    const limit      = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
-    const offset     = (page - 1) * limit;
+    const tipo        = req.query.tipo        || null;
+    const id_producto = req.query.id_producto ? parseInt(req.query.id_producto) : null;
+    const desde       = req.query.desde       || null;
+    const hasta       = req.query.hasta       || null;
+    const page        = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit       = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset      = (page - 1) * limit;
     const { id_empresa } = req.usuario;
 
     let where = 'WHERE id_empresa = ?';
@@ -39,19 +39,24 @@ const listarMovimientos = async (req, res) => {
 const registrarMovimiento = async (req, res) => {
   const conn = await pool.getConnection();
   try {
-    const { id_producto, tipo, cantidad, costo_unitario, referencia, proveedor, notas } = req.body;
+    const {
+      id_producto, tipo, cantidad, costo_unitario,
+      referencia, proveedor, notas,
+      // Nuevo campo FIFO: precio de venta para este lote (solo en entradas)
+      precio_venta_lote,
+    } = req.body;
     const { id_empresa, id_sucursal, id_usuario } = req.usuario;
 
     await conn.beginTransaction();
 
     // Bloquear fila del producto
     const [prod] = await conn.execute(
-      'SELECT stock_actual, nombre, stock_minimo FROM productos WHERE id_producto=? AND id_empresa=? AND activo=1 FOR UPDATE',
+      'SELECT stock_actual, nombre, stock_minimo, precio_venta FROM productos WHERE id_producto=? AND id_empresa=? AND activo=1 FOR UPDATE',
       [id_producto, id_empresa]
     );
     if (!prod.length) throw new Error('Producto no encontrado.');
 
-    const { stock_actual, nombre, stock_minimo } = prod[0];
+    const { stock_actual, nombre, stock_minimo, precio_venta: precio_actual } = prod[0];
     let stock_nuevo;
 
     const esEntrada = tipo.startsWith('entrada') || tipo === 'traslado_entrada';
@@ -79,6 +84,46 @@ const registrarMovimiento = async (req, res) => {
        stock_actual, stock_nuevo, costo_unitario || 0, referencia || null,
        proveedor || null, notas || null]
     );
+
+    // ── LÓGICA FIFO ────────────────────────────────────────────────────────────
+    if (esEntrada) {
+      const nuevoPrecioVenta = parseFloat(precio_venta_lote) || precio_actual;
+
+      // Verificar si existe la tabla lotes_inventario (por si no se ejecutó migración aún)
+      const [tableCheck] = await conn.execute(
+        `SELECT COUNT(*) AS existe FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = 'lotes_inventario'`
+      );
+
+      if (tableCheck[0].existe > 0) {
+        // Crear lote para esta entrada
+        await conn.execute(
+          `INSERT INTO lotes_inventario
+            (id_producto, id_empresa, id_movimiento, cantidad_inicial, cantidad_restante,
+             costo_unitario, precio_venta, fecha_entrada)
+           VALUES (?,?,?,?,?,?,?,NOW())`,
+          [id_producto, id_empresa, result.insertId, parseInt(cantidad), parseInt(cantidad),
+           parseFloat(costo_unitario) || 0, nuevoPrecioVenta]
+        );
+
+        // Si el precio del lote nuevo difiere, actualizar precio del producto
+        // con el precio del lote más antiguo con stock disponible (FIFO)
+        const [loteActivo] = await conn.execute(
+          `SELECT precio_venta FROM lotes_inventario
+           WHERE id_producto=? AND id_empresa=? AND activo=1 AND cantidad_restante > 0
+           ORDER BY fecha_entrada ASC LIMIT 1`,
+          [id_producto, id_empresa]
+        );
+
+        if (loteActivo.length > 0) {
+          await conn.execute(
+            'UPDATE productos SET precio_venta=? WHERE id_producto=?',
+            [loteActivo[0].precio_venta, id_producto]
+          );
+        }
+      }
+    }
+    // ── FIN LÓGICA FIFO ────────────────────────────────────────────────────────
 
     // Alerta si quedó en stock crítico
     const alertaCritica = stock_nuevo <= stock_minimo && stock_nuevo > 0;
@@ -156,4 +201,35 @@ const resumenInventario = async (req, res) => {
   }
 };
 
-module.exports = { listarMovimientos, registrarMovimiento, ajustarStock, resumenInventario };
+// Retorna lotes activos de un producto (para mostrar en el panel del almacenista)
+const lotesProducto = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { id_empresa } = req.usuario;
+
+    // Verificar si la tabla existe
+    const [tableCheck] = await pool.execute(
+      `SELECT COUNT(*) AS existe FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name = 'lotes_inventario'`
+    );
+
+    if (tableCheck[0].existe === 0) {
+      return ok(res, { lotes: [], fifo_disponible: false });
+    }
+
+    const [lotes] = await pool.execute(
+      `SELECT l.*, m.referencia, m.proveedor
+       FROM lotes_inventario l
+       LEFT JOIN movimientos_inventario m ON l.id_movimiento = m.id_movimiento
+       WHERE l.id_producto = ? AND l.id_empresa = ? AND l.activo = 1 AND l.cantidad_restante > 0
+       ORDER BY l.fecha_entrada ASC`,
+      [id, id_empresa]
+    );
+
+    ok(res, { lotes, fifo_disponible: true });
+  } catch (err) {
+    error(res, err.message);
+  }
+};
+
+module.exports = { listarMovimientos, registrarMovimiento, ajustarStock, resumenInventario, lotesProducto };
