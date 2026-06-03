@@ -11,7 +11,8 @@ const ventas     = require('../controllers/ventasController');
 const inventario = require('../controllers/inventarioController');
 const facturas   = require('../controllers/facturasController');
 const catalogos  = require('../controllers/catalogosController');
-const reportes   = require('../controllers/reportesController');
+const reportes      = require('../controllers/reportesController');
+const diagnostico   = require('../controllers/diagnosticoController');
 
 // ── AUTH ──────────────────────────────────────────────────────
 router.post('/auth/login',
@@ -79,5 +80,9 @@ router.get ('/sucursales',        autenticado, catalogos.getSucursales);
 router.get('/reportes/auditoria',          autenticado, soloAdmin, reportes.auditoria);
 router.get('/reportes/ventas-por-vendedor',autenticado, soloAdmin, reportes.ventasPorVendedor);
 router.get('/reportes/exportar-inventario',autenticado, soloAdmin, reportes.exportarInventario);
+
+// ── DIAGNÓSTICO RF-02 · RF-03 · RF-04 (solo Admin) ───────────
+router.get('/diagnostico/conteo-tablas',   autenticado, soloAdmin, diagnostico.conteoTablas);
+router.get('/diagnostico/validaciones-stock', autenticado, soloAdmin, diagnostico.validacionesStock);
 
 module.exports = router;
